@@ -1,0 +1,26 @@
+{
+  "name": "redis-node-js",
+  "version": "1.0.1",
+  "description": "将redis接口的类js接口封装",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "jest",
+    "ts": "npx tsc -p . "
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/orange030/redis-node-js.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/ioredis": "^4.0.14",
+    "@types/jest": "^24.0.17",
+    "jest": "^24.8.0",
+    "ts-jest": "^24.0.2",
+    "typescript": "^3.5.3"
+  },
+  "dependencies": {
+    "ioredis": "^4.14.0"
+  }
+}
