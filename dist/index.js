@@ -106,6 +106,10 @@ class RedisObject {
         let key = this.prefix;
         return { key, expire };
     }
+    async delete(...fields) {
+        let key = this.getPrefix();
+        return this.redis().hdel(key, ...fields);
+    }
     async set(k, v) {
         let { key, expire } = this.getPrefixAndExpires();
         return this.redis()
@@ -195,6 +199,22 @@ class RedisObject {
     }
     async incr(k) {
         return this.incrby(k, 1);
+    }
+    async clear() {
+        let result = await this.redis().hgetall(this.getPrefix());
+        let keys = Object.keys(result);
+        let refs = keys.filter(e => e[0] == '*');
+        let pipeline = this.redis().pipeline();
+        pipeline.del(this.getPrefix());
+        for (let i = 0; i < refs.length; ++i) {
+            let r = refs[i];
+            let k = r.substr(r.indexOf('@') + 1);
+            //@ts-ignore
+            let path = await this.getListPath(k);
+            let path2 = this.getPrefix() + ':' + path;
+            pipeline.del(path2);
+        }
+        return pipeline.exec();
     }
     getListKey(k) {
         return '*list@' + k;

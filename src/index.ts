@@ -133,6 +133,10 @@ export class RedisObject<T = { [key: string]: string | number }> {
       throw new Error('Error offset in RedisObject.constructor '+params.timeUnit+' '+ this.offset )
     }
   }
+  async delete(...fields: (keyof T & string)[]){
+    let key = this.getPrefix()
+    return this.redis().hdel(key,...fields)
+  }
   async set(k: keyof T & string, v: string|number) {
     let { key, expire } = this.getPrefixAndExpires()
     return this.redis()
@@ -222,6 +226,23 @@ export class RedisObject<T = { [key: string]: string | number }> {
   }
   async incr(k: keyof T & string) {
     return this.incrby(k,1)
+  }
+  async clear(){
+    let result = await this.redis().hgetall(this.getPrefix())
+    let keys = Object.keys(result)
+    let refs = keys.filter(e=>e[0]=='*')
+    let pipeline = this.redis().pipeline()
+    pipeline.del(this.getPrefix())
+    for(let i=0;i<refs.length;++i){
+      let r = refs[i]
+      let k =  r.substr(r.indexOf('@')+1)
+
+      //@ts-ignore
+      let path = await this.getListPath(k)
+      let path2 = this.getPrefix()+':'+path
+      pipeline.del(path2)
+    }
+    return pipeline.exec()
   }
 
   private getListKey(k: keyof T & string){

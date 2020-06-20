@@ -37,6 +37,7 @@ export declare class RedisObject<T = {
          */
         expireBy?: 'timeUnit' | 'request';
     });
+    delete(...fields: (keyof T & string)[]): Promise<any>;
     set(k: keyof T & string, v: string | number): Promise<any>;
     /**
      * Inserts new elements at the start of an array.
@@ -69,6 +70,7 @@ export declare class RedisObject<T = {
     }>;
     incrby(k: keyof T & string, increment: number): Promise<any>;
     incr(k: keyof T & string): Promise<any>;
+    clear(): Promise<any>;
     private getListKey;
     private getListPath;
 }
