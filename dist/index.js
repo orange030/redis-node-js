@@ -175,6 +175,12 @@ class RedisObject {
     async get(k) {
         return this.redis().hget(this.getPrefix(), k);
     }
+    async gets(keys) {
+        let prefix = this.getPrefix();
+        let pipeline = this.redis().pipeline();
+        keys.forEach(k => pipeline.hget(prefix, k));
+        return (await pipeline.exec()).map(e => e[1]);
+    }
     async getAll() {
         let result = await this.redis().hgetall(this.getPrefix());
         let keys = Object.keys(result);
