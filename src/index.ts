@@ -200,14 +200,14 @@ export class RedisObject<T = { [key: string]: string | number }> {
   async list(k: keyof T & string) {
     return this.slice(k, 0, -1)
   }
-  async get(k: keyof T & string) {
+  async get(k: keyof T & string): Promise<string | null> {
     return this.redis().hget(this.getPrefix(), k)
   }
-  async gets(keys: (keyof T & string)[]) {
+  async gets(keys: (keyof T & string)[]): Promise<(string | null)[]> {
     let prefix = this.getPrefix()
     let pipeline = this.redis().pipeline()
     keys.forEach(k => pipeline.hget(prefix, k))
-    return (await pipeline.exec() as Object[][]).map(e => e[1])
+    return (await pipeline.exec() as Object[][]).map(e => e[1] as (string | null))
   }
   async getAll(): Promise<{ [P in keyof T]?: string }> {
     let result = await this.redis().hgetall(this.getPrefix())

@@ -65,7 +65,7 @@ export declare class RedisObject<T = {
      */
     list(k: keyof T & string): Promise<string[]>;
     get(k: keyof T & string): Promise<string | null>;
-    gets(keys: (keyof T & string)[]): Promise<Object[]>;
+    gets(keys: (keyof T & string)[]): Promise<(string | null)[]>;
     getAll(): Promise<{
         [P in keyof T]?: string;
     }>;
