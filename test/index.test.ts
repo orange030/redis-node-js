@@ -1,7 +1,7 @@
 import { RedisObject, Init } from '../src/index'
 
 Init({
-  redisUrl: "" as string,
+  // redisUrl: "" as string,
   prefix:'js:object:'
 })
 
@@ -20,6 +20,7 @@ async function testFunc() {
     offset: 7320,
     expireBy:'timeUnit'
   })
+  let i = await test.memory()
   console.log(await test.getAll())
   console.log(await test.list('list'))
   await test.incr("count")

@@ -1,11 +1,10 @@
 export declare function Init(params: {
-    redisUrl: string;
+    redisUrl?: string;
     prefix: string;
 }): void;
 export declare class RedisObject<T = {
     [key: string]: string | number;
 }> {
-    private _redis?;
     private expireBy;
     private redis;
     private timeUnit;
@@ -13,9 +12,10 @@ export declare class RedisObject<T = {
      * 时间偏移量,单位为秒
      */
     private offset;
-    private prefix;
-    private getPrefix;
     private count;
+    private prefix;
+    private redisUrl;
+    private getPrefix;
     private getPrefixAndExpires;
     constructor(params: {
         /**
@@ -72,7 +72,14 @@ export declare class RedisObject<T = {
     incrby(k: keyof T & string, increment: number): Promise<any>;
     incr(k: keyof T & string): Promise<any>;
     clear(): Promise<any>;
+    /**
+     * 获取当前redis的内存使用情况
+     */
+    memory(): Promise<{
+        used_memory: number;
+        total_system_memory: number;
+        usage: number;
+    }>;
     private getListKey;
     private getListPath;
 }
-//# sourceMappingURL=index.d.ts.map

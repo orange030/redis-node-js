@@ -4,11 +4,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const ioredis_1 = __importDefault(require("ioredis"));
-const moment = require("moment");
+const moment_1 = __importDefault(require("moment"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 let prefix = 'js:object:';
-let _redis;
+// function isNumeric(str: string) {
+//   if (typeof str !== "string") return false // we only process strings!  
+//   return !isNaN(str as any) && // use type coercion to parse the _entirety_ of the string (`parseFloat` alone does not do this)...
+//          !isNaN(parseFloat(str)) // ...and ensure strings of whitespace fail
+// }
+/**
+ * 用来缓存内部使用的ioredis实例，key是redis的url，值是实例
+ */
+const INTERNAL_REDIS_INS = {};
 function setLuaFunction(redis) {
     redis.defineCommand('incrbyex', {
         numberOfKeys: 4,
@@ -20,8 +28,10 @@ function setLuaFunction(redis) {
     });
 }
 function Init(params) {
-    _redis = new ioredis_1.default(params.redisUrl, { maxRetriesPerRequest: null });
-    setLuaFunction(_redis);
+    INTERNAL_REDIS_INS.default = params.redisUrl ?
+        new ioredis_1.default(params.redisUrl || undefined, { maxRetriesPerRequest: null }) :
+        new ioredis_1.default({ maxRetriesPerRequest: null });
+    setLuaFunction(INTERNAL_REDIS_INS.default);
     prefix = params.prefix;
     if (prefix[prefix.length - 1] != ':') {
         prefix += ':';
@@ -29,11 +39,11 @@ function Init(params) {
 }
 exports.Init = Init;
 function getTimeLength(timeUnit, count) {
-    return moment.duration(count, timeUnit || 'minute').asSeconds();
+    return moment_1.default.duration(count, timeUnit || 'minute').asSeconds();
 }
 function getCacheTime(params) {
     let { timeUnit, offset, count } = params;
-    let now = moment();
+    let now = moment_1.default();
     // let startTimestamp = now.startOf('day')
     let expire = 60 * 60 * 24;
     // if (timeUnit)
@@ -61,21 +71,26 @@ class RedisObject {
          */
         this.offset = 0;
         this.prefix = '';
+        this.redisUrl = undefined;
         this.prefix = prefix + params.prefix;
+        this.redisUrl = params.redisUrl;
         this.timeUnit = params.timeUnit;
         this.offset = params.offset || 0;
         this.count = params.count || 1;
         this.expireBy = params.expireBy || 'request';
-        if (params.redisUrl) {
-            this._redis = new ioredis_1.default(params.redisUrl, { maxRetriesPerRequest: null });
-            setLuaFunction(this._redis);
+        if (params.redisUrl && !INTERNAL_REDIS_INS[params.redisUrl]) {
+            INTERNAL_REDIS_INS[params.redisUrl] = new ioredis_1.default(params.redisUrl, { maxRetriesPerRequest: null });
+            setLuaFunction(INTERNAL_REDIS_INS[params.redisUrl]);
         }
         if (this.offset < 0 || this.offset > getTimeLength(params.timeUnit, 1)) {
             throw new Error('Error offset in RedisObject.constructor ' + params.timeUnit + ' ' + this.offset);
         }
     }
     redis() {
-        return this._redis || _redis;
+        const ins = INTERNAL_REDIS_INS[this.redisUrl || 'default'];
+        if (!ins)
+            throw new Error('No redis instance, please call init or specify redis url in constructor');
+        return ins;
     }
     getPrefix() {
         // let { startTimestamp, expire } = getCacheTime({timeUnit:this.timeUnit,count:this.count,offset:this.offset})
@@ -92,12 +107,12 @@ class RedisObject {
             expire = result.expire;
         }
         else if (this.expireBy === 'request') {
-            startTimestamp = moment();
+            startTimestamp = moment_1.default();
             expire = getTimeLength(this.timeUnit, this.count);
         }
         else {
             console.error('error expireBy ' + this.expireBy);
-            startTimestamp = moment();
+            startTimestamp = moment_1.default();
             expire = getTimeLength(this.timeUnit, this.count);
         }
         // let {startTimestamp,expire} = getCacheTime({timeUnit:this.timeUnit,count:this.count,offset:this.offset})
@@ -221,6 +236,29 @@ class RedisObject {
             pipeline.del(path2);
         }
         return pipeline.exec();
+    }
+    /**
+     * 获取当前redis的内存使用情况
+     */
+    async memory() {
+        let content = await this.redis().info('memory');
+        let stats = content.split(/\s+/).filter(c => !!c && (c.includes('used_memory:') || c.includes('total_system_memory:')));
+        const res = {
+            total_system_memory: -1,
+            usage: -1,
+            used_memory: -1
+        };
+        stats.forEach(s => {
+            const kv = s.split(':');
+            const k = kv[0].trim();
+            let v = kv[1].trim();
+            if ((/^\d+$/g).test(v)) {
+                // @ts-ignore
+                res[k] = parseInt(v);
+            }
+        });
+        res.usage = res.used_memory / res.total_system_memory;
+        return res;
     }
     getListKey(k) {
         return '*list@' + k;
