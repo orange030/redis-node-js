@@ -1,6 +1,6 @@
 {
   "name": "redis-node-js",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "将redis接口的类js接口封装",
   "main": "dist/index.js",
   "scripts": {
