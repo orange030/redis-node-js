@@ -16,7 +16,7 @@ export declare class RedisObject<T = {
     private prefix;
     private redisUrl;
     private getPrefix;
-    private getPrefixAndExpires;
+    private getExpires;
     constructor(params: {
         /**
          * 存储名,比如RA, RS, prac:RA , prac:RS
@@ -37,6 +37,8 @@ export declare class RedisObject<T = {
          */
         expireBy?: 'timeUnit' | 'request';
     });
+    /** 判断这个redis object，也就是hash对象，在redis里是否存在 */
+    exist(): Promise<boolean>;
     delete(...fields: (keyof T & string)[]): Promise<any>;
     set(k: keyof T & string, v: string | number): Promise<any>;
     /**

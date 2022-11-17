@@ -93,13 +93,9 @@ class RedisObject {
         return ins;
     }
     getPrefix() {
-        // let { startTimestamp, expire } = getCacheTime({timeUnit:this.timeUnit,count:this.count,offset:this.offset})
-        // let date = startTimestamp.valueOf()
-        // let key = this.prefix + ':' + date
-        // return key
         return this.prefix;
     }
-    getPrefixAndExpires() {
+    getExpires() {
         let startTimestamp, expire;
         if (this.expireBy === 'timeUnit') {
             let result = getCacheTime({ timeUnit: this.timeUnit, count: this.count, offset: this.offset });
@@ -115,35 +111,36 @@ class RedisObject {
             startTimestamp = moment_1.default();
             expire = getTimeLength(this.timeUnit, this.count);
         }
-        // let {startTimestamp,expire} = getCacheTime({timeUnit:this.timeUnit,count:this.count,offset:this.offset})
-        // let { startTimestamp, expire } = getCacheTime(this.timeUnit, this.offset)
-        let date = startTimestamp.valueOf();
-        let key = this.prefix;
-        return { key, expire };
+        return expire;
+    }
+    /** 判断这个redis object，也就是hash对象，在redis里是否存在 */
+    async exist() {
+        // ioredis这里返回的是存在的key的数量
+        const n = await this.redis().exists(this.getPrefix());
+        return n === 1;
     }
     async delete(...fields) {
         let key = this.getPrefix();
         return this.redis().hdel(key, ...fields);
     }
     async set(k, v) {
-        let { key, expire } = this.getPrefixAndExpires();
+        let expire = this.getExpires();
         return this.redis()
             .pipeline()
             //@ts-ignore
-            .hsetex(key, k, v, expire)
-            // .expire(key, expire)
+            .hsetex(this.getPrefix(), k, v, expire)
             .exec();
     }
     /**
      * Inserts new elements at the start of an array.
      */
     async unshift(k, ...values) {
-        let { key, expire } = this.getPrefixAndExpires();
+        let expire = this.getExpires();
         let path = await this.getListPath(k);
         return this.redis()
             .pipeline()
-            .lpush(key + ':' + path, values)
-            .expire(key + ':' + path, expire)
+            .lpush(this.getPrefix() + ':' + path, values)
+            .expire(this.getPrefix() + ':' + path, expire)
             .exec();
     }
     /**
@@ -157,12 +154,12 @@ class RedisObject {
      * Appends new elements to an array
      */
     async push(k, ...values) {
-        let { key, expire } = this.getPrefixAndExpires();
+        let expire = this.getExpires();
         let path = await this.getListPath(k);
         return this.redis()
             .pipeline()
-            .rpush(key + ':' + path, values)
-            .expire(key + ':' + path, expire)
+            .rpush(this.getPrefix() + ':' + path, values)
+            .expire(this.getPrefix() + ':' + path, expire)
             .exec();
     }
     /**
@@ -210,12 +207,11 @@ class RedisObject {
         return result;
     }
     async incrby(k, increment) {
-        let { key, expire } = this.getPrefixAndExpires();
+        let expire = this.getExpires();
         return this.redis()
             .pipeline()
             //@ts-ignore
-            .incrbyex(key, k, increment, expire)
-            // .expire(key, expire)
+            .incrbyex(this.getPrefix(), k, increment, expire)
             .exec();
     }
     async incr(k) {
