@@ -83,15 +83,11 @@ export class RedisObject<T = { [key: string]: string | number }> {
   private count: number;
   private prefix = ''
   private redisUrl: string | undefined = undefined
+
   private getPrefix(): string {
-    // let { startTimestamp, expire } = getCacheTime({timeUnit:this.timeUnit,count:this.count,offset:this.offset})
-    // let date = startTimestamp.valueOf()
-    // let key = this.prefix + ':' + date
-    // return key
     return this.prefix
   }
-  private getPrefixAndExpires() {
-
+  private getExpires() {
     let startTimestamp: moment.Moment, expire: number
     if (this.expireBy === 'timeUnit') {
       let result = getCacheTime({ timeUnit: this.timeUnit, count: this.count, offset: this.offset })
@@ -105,13 +101,7 @@ export class RedisObject<T = { [key: string]: string | number }> {
       startTimestamp = moment()
       expire = getTimeLength(this.timeUnit, this.count)
     }
-
-    // let {startTimestamp,expire} = getCacheTime({timeUnit:this.timeUnit,count:this.count,offset:this.offset})
-
-    // let { startTimestamp, expire } = getCacheTime(this.timeUnit, this.offset)
-    let date = startTimestamp.valueOf()
-    let key = this.prefix
-    return { key, expire }
+    return expire
   }
   constructor(params: {
     /**
@@ -147,29 +137,36 @@ export class RedisObject<T = { [key: string]: string | number }> {
       throw new Error('Error offset in RedisObject.constructor ' + params.timeUnit + ' ' + this.offset)
     }
   }
+
+  /** 判断这个redis object，也就是hash对象，在redis里是否存在 */
+  async exist() {
+    // ioredis这里返回的是存在的key的数量
+    const n = await this.redis().exists(this.getPrefix())
+    return n === 1
+  }
+
   async delete(...fields: (keyof T & string)[]) {
     let key = this.getPrefix()
     return this.redis().hdel(key, ...fields)
   }
   async set(k: keyof T & string, v: string | number) {
-    let { key, expire } = this.getPrefixAndExpires()
+    let expire = this.getExpires()
     return this.redis()
       .pipeline()
       //@ts-ignore
-      .hsetex(key, k, v, expire)
-      // .expire(key, expire)
+      .hsetex(this.getPrefix(), k, v, expire)
       .exec()
   }
   /**
    * Inserts new elements at the start of an array.
    */
   async unshift(k: keyof T & string, ...values: (string | number)[]) {
-    let { key, expire } = this.getPrefixAndExpires()
+    let expire = this.getExpires()
     let path = await this.getListPath(k)
     return this.redis()
       .pipeline()
-      .lpush(key + ':' + path, values)
-      .expire(key + ':' + path, expire)
+      .lpush(this.getPrefix() + ':' + path, values)
+      .expire(this.getPrefix() + ':' + path, expire)
       .exec()
   }
   /**
@@ -183,12 +180,12 @@ export class RedisObject<T = { [key: string]: string | number }> {
    * Appends new elements to an array
    */
   async push(k: keyof T & string, ...values: (string | number)[]) {
-    let { key, expire } = this.getPrefixAndExpires()
+    let expire = this.getExpires()
     let path = await this.getListPath(k)
     return this.redis()
       .pipeline()
-      .rpush(key + ':' + path, values)
-      .expire(key + ':' + path, expire)
+      .rpush(this.getPrefix() + ':' + path, values)
+      .expire(this.getPrefix() + ':' + path, expire)
       .exec()
   }
   /**
@@ -237,12 +234,11 @@ export class RedisObject<T = { [key: string]: string | number }> {
     return result
   }
   async incrby(k: keyof T & string, increment: number) {
-    let { key, expire } = this.getPrefixAndExpires()
+    let expire = this.getExpires()
     return this.redis()
       .pipeline()
       //@ts-ignore
-      .incrbyex(key, k, increment, expire)
-      // .expire(key, expire)
+      .incrbyex(this.getPrefix(), k, increment, expire)
       .exec()
   }
   async incr(k: keyof T & string) {

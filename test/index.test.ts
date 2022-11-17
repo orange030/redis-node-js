@@ -15,12 +15,13 @@ interface TestInterface {
 async function testFunc() {
   console.log('RedisObject')
   let test = new RedisObject<TestInterface>({
-    prefix: 'test3',
+    prefix: 'test2',
     timeUnit: 'day',
     offset: 7320,
     expireBy:'timeUnit'
   })
-  let i = await test.memory()
+  console.log(await test.exist());
+  console.log(await test.memory());
   console.log(await test.getAll())
   console.log(await test.list('list'))
   await test.incr("count")
@@ -30,6 +31,7 @@ async function testFunc() {
   console.log(await test.slice('list',0,1))
   console.log(await test.list('list'))
   console.log(await test.getAll())
+  console.log(await test.exist());
 }
 
 describe('test',()=>{
