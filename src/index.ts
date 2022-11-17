@@ -15,9 +15,9 @@ let prefix = 'js:object:'
 /**
  * 用来缓存内部使用的ioredis实例，key是redis的url，值是实例
  */
-const INTERNAL_REDIS_INS: {[key: string]: IORedis.Redis } = {}
+const INTERNAL_REDIS_INS: {[key: string]: IORedis } = {}
 
-function setLuaFunction(redis: IORedis.Redis) {
+function setLuaFunction(redis: IORedis) {
   redis.defineCommand('incrbyex', {
     numberOfKeys: 4,
     lua: fs.readFileSync(path.resolve(__dirname, 'incrbyex.lua')).toString()
@@ -30,7 +30,7 @@ function setLuaFunction(redis: IORedis.Redis) {
 
 export function Init(params: { redisUrl?: string, prefix: string }) {
   INTERNAL_REDIS_INS.default = params.redisUrl ?
-    new IORedis(params.redisUrl || undefined, { maxRetriesPerRequest: null }) :
+    new IORedis(params.redisUrl, { maxRetriesPerRequest: null }) :
     new IORedis({ maxRetriesPerRequest: null })
   setLuaFunction(INTERNAL_REDIS_INS.default)
   prefix = params.prefix
@@ -48,23 +48,17 @@ function getCacheTime(params: { timeUnit: 'day' | 'hour' | 'minute' | 'month' | 
 
   let { timeUnit, offset, count } = params
   let now = moment()
-  // let startTimestamp = now.startOf('day')
   let expire = 60 * 60 * 24
-  // if (timeUnit)
-  // {
   let startTimestamp = now.clone().startOf(timeUnit).add(offset, 'second')
   //使offset支持负数
   if (startTimestamp.isAfter(now)) {
-    // console.log('before time')
     startTimestamp = now.clone().subtract(1, timeUnit).startOf(timeUnit).add(offset, 'second')
   }
-  // cacheKeyConfig['cacheTime'] = startTimestamp.toDate()
   let expireTimestamp = startTimestamp
     .clone()
     .add(count, timeUnit)
     .add(1, (timeUnit === 'second') ? 'second' : 'minute')
   expire = Math.floor((expireTimestamp.valueOf() - now.valueOf()) / 1000)
-  // }
   return { startTimestamp, expire }
 }
 
@@ -165,7 +159,7 @@ export class RedisObject<T = { [key: string]: string | number }> {
     let path = await this.getListPath(k)
     return this.redis()
       .pipeline()
-      .lpush(this.getPrefix() + ':' + path, values)
+      .lpush(this.getPrefix() + ':' + path, ...values)
       .expire(this.getPrefix() + ':' + path, expire)
       .exec()
   }
@@ -184,7 +178,7 @@ export class RedisObject<T = { [key: string]: string | number }> {
     let path = await this.getListPath(k)
     return this.redis()
       .pipeline()
-      .rpush(this.getPrefix() + ':' + path, values)
+      .rpush(this.getPrefix() + ':' + path, ...values)
       .expire(this.getPrefix() + ':' + path, expire)
       .exec()
   }
@@ -192,7 +186,6 @@ export class RedisObject<T = { [key: string]: string | number }> {
    * Removes the last element from an array and returns it.
    */
   async pop(k: keyof T & string): Promise<string | null> {
-    [].push
     let path = await this.getListPath(k)
     return this.redis().rpop(this.getPrefix() + ':' + path)
   }
@@ -220,9 +213,11 @@ export class RedisObject<T = { [key: string]: string | number }> {
     keys.forEach(k => pipeline.hget(prefix, k))
     return (await pipeline.exec() as Object[][]).map(e => e[1] as (string | null))
   }
-  async getAll(): Promise<{ [P in keyof T]?: string }> {
+  async getAll(): Promise<{ [P in keyof T]?: string } | undefined> {
     let result = await this.redis().hgetall(this.getPrefix())
     let keys = Object.keys(result)
+    // 如果对象不存在则返回空
+    if (keys.length === 0) return undefined
     let refs = keys.filter(e => e[0] == '*')
     for (let i = 0; i < refs.length; ++i) {
       let r = refs[i]
@@ -267,7 +262,7 @@ export class RedisObject<T = { [key: string]: string | number }> {
    */
   async memory(): Promise<{ used_memory: number, total_system_memory: number, usage: number }> {
     let content = await this.redis().info('memory')
-    let stats = content.split(/\s+/).filter(c => !!c && (c.includes('used_memory:') || c.includes('total_system_memory:')))
+    let stats = content.split(/\s+/).filter((c: string) => !!c && (c.includes('used_memory:') || c.includes('total_system_memory:'))) as string[]
     const res: { used_memory: number, total_system_memory: number, usage: number } = {
       total_system_memory: -1,
       usage: -1,

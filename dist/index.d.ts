@@ -39,12 +39,12 @@ export declare class RedisObject<T = {
     });
     /** 判断这个redis object，也就是hash对象，在redis里是否存在 */
     exist(): Promise<boolean>;
-    delete(...fields: (keyof T & string)[]): Promise<any>;
+    delete(...fields: (keyof T & string)[]): Promise<number>;
     set(k: keyof T & string, v: string | number): Promise<any>;
     /**
      * Inserts new elements at the start of an array.
      */
-    unshift(k: keyof T & string, ...values: (string | number)[]): Promise<any>;
+    unshift(k: keyof T & string, ...values: (string | number)[]): Promise<[error: Error | null, result: unknown][] | null>;
     /**
      *  Removes the first element from an array and returns it.
      */
@@ -52,7 +52,7 @@ export declare class RedisObject<T = {
     /**
      * Appends new elements to an array
      */
-    push(k: keyof T & string, ...values: (string | number)[]): Promise<any>;
+    push(k: keyof T & string, ...values: (string | number)[]): Promise<[error: Error | null, result: unknown][] | null>;
     /**
      * Removes the last element from an array and returns it.
      */
@@ -70,10 +70,10 @@ export declare class RedisObject<T = {
     gets(keys: (keyof T & string)[]): Promise<(string | null)[]>;
     getAll(): Promise<{
         [P in keyof T]?: string;
-    }>;
+    } | undefined>;
     incrby(k: keyof T & string, increment: number): Promise<any>;
     incr(k: keyof T & string): Promise<any>;
-    clear(): Promise<any>;
+    clear(): Promise<[error: Error | null, result: unknown][] | null>;
     /**
      * 获取当前redis的内存使用情况
      */

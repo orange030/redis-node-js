@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.RedisObject = exports.Init = void 0;
 const ioredis_1 = __importDefault(require("ioredis"));
 const moment_1 = __importDefault(require("moment"));
 const fs_1 = __importDefault(require("fs"));
@@ -29,7 +30,7 @@ function setLuaFunction(redis) {
 }
 function Init(params) {
     INTERNAL_REDIS_INS.default = params.redisUrl ?
-        new ioredis_1.default(params.redisUrl || undefined, { maxRetriesPerRequest: null }) :
+        new ioredis_1.default(params.redisUrl, { maxRetriesPerRequest: null }) :
         new ioredis_1.default({ maxRetriesPerRequest: null });
     setLuaFunction(INTERNAL_REDIS_INS.default);
     prefix = params.prefix;
@@ -43,35 +44,58 @@ function getTimeLength(timeUnit, count) {
 }
 function getCacheTime(params) {
     let { timeUnit, offset, count } = params;
-    let now = moment_1.default();
-    // let startTimestamp = now.startOf('day')
+    let now = (0, moment_1.default)();
     let expire = 60 * 60 * 24;
-    // if (timeUnit)
-    // {
     let startTimestamp = now.clone().startOf(timeUnit).add(offset, 'second');
     //使offset支持负数
     if (startTimestamp.isAfter(now)) {
-        // console.log('before time')
         startTimestamp = now.clone().subtract(1, timeUnit).startOf(timeUnit).add(offset, 'second');
     }
-    // cacheKeyConfig['cacheTime'] = startTimestamp.toDate()
     let expireTimestamp = startTimestamp
         .clone()
         .add(count, timeUnit)
         .add(1, (timeUnit === 'second') ? 'second' : 'minute');
     expire = Math.floor((expireTimestamp.valueOf() - now.valueOf()) / 1000);
-    // }
     return { startTimestamp, expire };
 }
 class RedisObject {
+    expireBy;
+    redis() {
+        const ins = INTERNAL_REDIS_INS[this.redisUrl || 'default'];
+        if (!ins)
+            throw new Error('No redis instance, please call init or specify redis url in constructor');
+        return ins;
+    }
+    timeUnit = 'hour';
+    /**
+     * 时间偏移量,单位为秒
+     */
+    offset = 0;
+    count;
+    prefix = '';
+    redisUrl = undefined;
+    getPrefix() {
+        return this.prefix;
+    }
+    getExpires() {
+        let startTimestamp, expire;
+        if (this.expireBy === 'timeUnit') {
+            let result = getCacheTime({ timeUnit: this.timeUnit, count: this.count, offset: this.offset });
+            startTimestamp = result.startTimestamp;
+            expire = result.expire;
+        }
+        else if (this.expireBy === 'request') {
+            startTimestamp = (0, moment_1.default)();
+            expire = getTimeLength(this.timeUnit, this.count);
+        }
+        else {
+            console.error('error expireBy ' + this.expireBy);
+            startTimestamp = (0, moment_1.default)();
+            expire = getTimeLength(this.timeUnit, this.count);
+        }
+        return expire;
+    }
     constructor(params) {
-        this.timeUnit = 'hour';
-        /**
-         * 时间偏移量,单位为秒
-         */
-        this.offset = 0;
-        this.prefix = '';
-        this.redisUrl = undefined;
         this.prefix = prefix + params.prefix;
         this.redisUrl = params.redisUrl;
         this.timeUnit = params.timeUnit;
@@ -85,33 +109,6 @@ class RedisObject {
         if (this.offset < 0 || this.offset > getTimeLength(params.timeUnit, 1)) {
             throw new Error('Error offset in RedisObject.constructor ' + params.timeUnit + ' ' + this.offset);
         }
-    }
-    redis() {
-        const ins = INTERNAL_REDIS_INS[this.redisUrl || 'default'];
-        if (!ins)
-            throw new Error('No redis instance, please call init or specify redis url in constructor');
-        return ins;
-    }
-    getPrefix() {
-        return this.prefix;
-    }
-    getExpires() {
-        let startTimestamp, expire;
-        if (this.expireBy === 'timeUnit') {
-            let result = getCacheTime({ timeUnit: this.timeUnit, count: this.count, offset: this.offset });
-            startTimestamp = result.startTimestamp;
-            expire = result.expire;
-        }
-        else if (this.expireBy === 'request') {
-            startTimestamp = moment_1.default();
-            expire = getTimeLength(this.timeUnit, this.count);
-        }
-        else {
-            console.error('error expireBy ' + this.expireBy);
-            startTimestamp = moment_1.default();
-            expire = getTimeLength(this.timeUnit, this.count);
-        }
-        return expire;
     }
     /** 判断这个redis object，也就是hash对象，在redis里是否存在 */
     async exist() {
@@ -139,7 +136,7 @@ class RedisObject {
         let path = await this.getListPath(k);
         return this.redis()
             .pipeline()
-            .lpush(this.getPrefix() + ':' + path, values)
+            .lpush(this.getPrefix() + ':' + path, ...values)
             .expire(this.getPrefix() + ':' + path, expire)
             .exec();
     }
@@ -158,7 +155,7 @@ class RedisObject {
         let path = await this.getListPath(k);
         return this.redis()
             .pipeline()
-            .rpush(this.getPrefix() + ':' + path, values)
+            .rpush(this.getPrefix() + ':' + path, ...values)
             .expire(this.getPrefix() + ':' + path, expire)
             .exec();
     }
@@ -166,7 +163,6 @@ class RedisObject {
      * Removes the last element from an array and returns it.
      */
     async pop(k) {
-        [].push;
         let path = await this.getListPath(k);
         return this.redis().rpop(this.getPrefix() + ':' + path);
     }
@@ -196,6 +192,9 @@ class RedisObject {
     async getAll() {
         let result = await this.redis().hgetall(this.getPrefix());
         let keys = Object.keys(result);
+        // 如果对象不存在则返回空
+        if (keys.length === 0)
+            return undefined;
         let refs = keys.filter(e => e[0] == '*');
         for (let i = 0; i < refs.length; ++i) {
             let r = refs[i];
@@ -238,7 +237,7 @@ class RedisObject {
      */
     async memory() {
         let content = await this.redis().info('memory');
-        let stats = content.split(/\s+/).filter(c => !!c && (c.includes('used_memory:') || c.includes('total_system_memory:')));
+        let stats = content.split(/\s+/).filter((c) => !!c && (c.includes('used_memory:') || c.includes('total_system_memory:')));
         const res = {
             total_system_memory: -1,
             usage: -1,
