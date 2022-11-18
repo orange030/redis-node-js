@@ -44,7 +44,7 @@ function getTimeLength(timeUnit, count) {
 }
 function getCacheTime(params) {
     let { timeUnit, offset, count } = params;
-    let now = (0, moment_1.default)();
+    let now = moment_1.default();
     let expire = 60 * 60 * 24;
     let startTimestamp = now.clone().startOf(timeUnit).add(offset, 'second');
     //使offset支持负数
@@ -59,43 +59,14 @@ function getCacheTime(params) {
     return { startTimestamp, expire };
 }
 class RedisObject {
-    expireBy;
-    redis() {
-        const ins = INTERNAL_REDIS_INS[this.redisUrl || 'default'];
-        if (!ins)
-            throw new Error('No redis instance, please call init or specify redis url in constructor');
-        return ins;
-    }
-    timeUnit = 'hour';
-    /**
-     * 时间偏移量,单位为秒
-     */
-    offset = 0;
-    count;
-    prefix = '';
-    redisUrl = undefined;
-    getPrefix() {
-        return this.prefix;
-    }
-    getExpires() {
-        let startTimestamp, expire;
-        if (this.expireBy === 'timeUnit') {
-            let result = getCacheTime({ timeUnit: this.timeUnit, count: this.count, offset: this.offset });
-            startTimestamp = result.startTimestamp;
-            expire = result.expire;
-        }
-        else if (this.expireBy === 'request') {
-            startTimestamp = (0, moment_1.default)();
-            expire = getTimeLength(this.timeUnit, this.count);
-        }
-        else {
-            console.error('error expireBy ' + this.expireBy);
-            startTimestamp = (0, moment_1.default)();
-            expire = getTimeLength(this.timeUnit, this.count);
-        }
-        return expire;
-    }
     constructor(params) {
+        this.timeUnit = 'hour';
+        /**
+         * 时间偏移量,单位为秒
+         */
+        this.offset = 0;
+        this.prefix = '';
+        this.redisUrl = undefined;
         this.prefix = prefix + params.prefix;
         this.redisUrl = params.redisUrl;
         this.timeUnit = params.timeUnit;
@@ -109,6 +80,33 @@ class RedisObject {
         if (this.offset < 0 || this.offset > getTimeLength(params.timeUnit, 1)) {
             throw new Error('Error offset in RedisObject.constructor ' + params.timeUnit + ' ' + this.offset);
         }
+    }
+    redis() {
+        const ins = INTERNAL_REDIS_INS[this.redisUrl || 'default'];
+        if (!ins)
+            throw new Error('No redis instance, please call init or specify redis url in constructor');
+        return ins;
+    }
+    getPrefix() {
+        return this.prefix;
+    }
+    getExpires() {
+        let startTimestamp, expire;
+        if (this.expireBy === 'timeUnit') {
+            let result = getCacheTime({ timeUnit: this.timeUnit, count: this.count, offset: this.offset });
+            startTimestamp = result.startTimestamp;
+            expire = result.expire;
+        }
+        else if (this.expireBy === 'request') {
+            startTimestamp = moment_1.default();
+            expire = getTimeLength(this.timeUnit, this.count);
+        }
+        else {
+            console.error('error expireBy ' + this.expireBy);
+            startTimestamp = moment_1.default();
+            expire = getTimeLength(this.timeUnit, this.count);
+        }
+        return expire;
     }
     /** 判断这个redis object，也就是hash对象，在redis里是否存在 */
     async exist() {
@@ -199,6 +197,7 @@ class RedisObject {
         for (let i = 0; i < refs.length; ++i) {
             let r = refs[i];
             let k = r.substr(r.indexOf('@') + 1);
+            // @ts-ignore
             delete result[r];
             //@ts-ignore
             result[k] = await this.list(k);

@@ -15,9 +15,9 @@ let prefix = 'js:object:'
 /**
  * 用来缓存内部使用的ioredis实例，key是redis的url，值是实例
  */
-const INTERNAL_REDIS_INS: {[key: string]: IORedis } = {}
+const INTERNAL_REDIS_INS: {[key: string]: IORedis.Redis } = {}
 
-function setLuaFunction(redis: IORedis) {
+function setLuaFunction(redis: IORedis.Redis) {
   redis.defineCommand('incrbyex', {
     numberOfKeys: 4,
     lua: fs.readFileSync(path.resolve(__dirname, 'incrbyex.lua')).toString()
@@ -214,7 +214,7 @@ export class RedisObject<T = { [key: string]: string | number }> {
     return (await pipeline.exec() as Object[][]).map(e => e[1] as (string | null))
   }
   async getAll(): Promise<{ [P in keyof T]?: string } | undefined> {
-    let result = await this.redis().hgetall(this.getPrefix())
+    let result = await this.redis().hgetall(this.getPrefix()) as { [P in keyof T]?: string }
     let keys = Object.keys(result)
     // 如果对象不存在则返回空
     if (keys.length === 0) return undefined
@@ -222,6 +222,7 @@ export class RedisObject<T = { [key: string]: string | number }> {
     for (let i = 0; i < refs.length; ++i) {
       let r = refs[i]
       let k = r.substr(r.indexOf('@') + 1)
+      // @ts-ignore
       delete result[r]
       //@ts-ignore
       result[k] = await this.list(k)

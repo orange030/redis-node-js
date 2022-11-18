@@ -17,17 +17,18 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/ioredis": "^4.28.10",
     "@types/jest": "^24.0.17",
     "@types/moment": "^2.13.0",
     "@types/node": "^18.11.9",
     "jest": "^24.8.0",
     "ts-jest": "^24.0.2",
-    "typescript": "^4.9.3"
-  },
-  "dependencies": {
-    "ioredis": "^5.2.4"
+    "typescript": "^3.9.10"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org"
+  },
+  "dependencies": {
+    "ioredis": "^4.28.5"
   }
 }

@@ -44,7 +44,7 @@ export declare class RedisObject<T = {
     /**
      * Inserts new elements at the start of an array.
      */
-    unshift(k: keyof T & string, ...values: (string | number)[]): Promise<[error: Error | null, result: unknown][] | null>;
+    unshift(k: keyof T & string, ...values: (string | number)[]): Promise<[Error | null, any][]>;
     /**
      *  Removes the first element from an array and returns it.
      */
@@ -52,7 +52,7 @@ export declare class RedisObject<T = {
     /**
      * Appends new elements to an array
      */
-    push(k: keyof T & string, ...values: (string | number)[]): Promise<[error: Error | null, result: unknown][] | null>;
+    push(k: keyof T & string, ...values: (string | number)[]): Promise<[Error | null, any][]>;
     /**
      * Removes the last element from an array and returns it.
      */
@@ -73,7 +73,7 @@ export declare class RedisObject<T = {
     } | undefined>;
     incrby(k: keyof T & string, increment: number): Promise<any>;
     incr(k: keyof T & string): Promise<any>;
-    clear(): Promise<[error: Error | null, result: unknown][] | null>;
+    clear(): Promise<[Error | null, any][]>;
     /**
      * 获取当前redis的内存使用情况
      */
